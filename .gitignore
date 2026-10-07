@@ -1,0 +1,15 @@
+libs/
+artifacts/
+bin/
+obj/
+**/bin/
+**/obj/
+**/__pycache__/
+*.user
+*.log
+*.db
+*.env
+upstream.json
+receipts-private/
+
+.DS_Store

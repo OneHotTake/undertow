@@ -61,6 +61,8 @@ public sealed class JellyfinChannel : IChannel, IHasChannelFeatures
         else if (folder == cfg.SeriesLibraryId) rows = snapshot.Items.Where(x => x.Type == "Series" && !IsAnime(x)).ToList();
         else if (folder is "anime:movies" or "anime:series") rows = snapshot.Items.Where(x => IsAnime(x) && x.Type == (folder == "anime:movies" ? "Movie" : "Series")).ToList();
         else rows = snapshot.Children.TryGetValue(folder, out var children) ? children : new();
+        if (labels.SkipLibraryDuplicates)
+            rows = rows.Where(x => !LibraryDuplicateCleanup.IsSuppressed(x, snapshot)).ToList();
         var mapped = rows.Select(Map).ToList();
         return Task.FromResult(new ChannelItemResult { TotalRecordCount = mapped.Count, Items = mapped.Skip(query.StartIndex ?? 0).Take(query.Limit ?? mapped.Count).ToList() });
     }

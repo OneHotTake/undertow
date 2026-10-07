@@ -15,6 +15,7 @@ public sealed class Configuration : BasePluginConfiguration
     public string AnimeMoviesName { get; set; } = "Movies";
     public string AnimeSeriesName { get; set; } = "Series";
     public bool Enabled { get; set; }
+    public bool SkipLibraryDuplicates { get; set; }
     public string[] CatalogIds { get; set; } = Array.Empty<string>();
     public string[] AnimeCatalogIds { get; set; } = Array.Empty<string>();
     public int MaximumVersions { get; set; } = 12;

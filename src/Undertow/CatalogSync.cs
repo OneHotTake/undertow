@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using MediaBrowser.Common;
 using MediaBrowser.Controller.Channels;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Tasks;
 
 namespace Jellyembifier;
@@ -13,6 +14,10 @@ public sealed class CatalogSnapshot
     public List<UpstreamItem> Items { get; set; } = new();
     public Dictionary<string, List<UpstreamItem>> Children { get; set; } = new();
     public Dictionary<string, DateTimeOffset> SeriesChecked { get; set; } = new();
+    public HashSet<string> SuppressedMovieIds { get; set; } = new(StringComparer.Ordinal);
+    public HashSet<string> SuppressedEpisodeIds { get; set; } = new(StringComparer.Ordinal);
+    public HashSet<string> SuppressedSeriesIds { get; set; } = new(StringComparer.Ordinal);
+    public HashSet<string> SuppressedSeasonIds { get; set; } = new(StringComparer.Ordinal);
     public double CatalogSeconds { get; set; }
     public double StructureSeconds { get; set; }
     public double ImportSeconds { get; set; }
@@ -25,6 +30,7 @@ public static class CatalogSync
     public static string LastError { get; private set; } = "";
     public static int CatalogPages { get; private set; }
     public static int SeriesProcessed { get; private set; }
+    public static int RemovedDuplicates { get; private set; }
     private static string PathName => Path.Combine(Plugin.Instance.DataDirectory, "catalog.json");
     private static CatalogSnapshot? snapshot;
     public static List<UpstreamItem> MergeAdditive(IEnumerable<UpstreamItem> previous, IEnumerable<UpstreamItem> incoming)
@@ -62,7 +68,7 @@ public static class CatalogSync
         if (!await Gate.WaitAsync(0, ct)) throw new InvalidOperationException("Catalog refresh already running.");
         try
         {
-            LastError = ""; CatalogPages = 0; SeriesProcessed = 0; Phase = "Catalog listing";
+            LastError = ""; RemovedDuplicates = 0; CatalogPages = 0; SeriesProcessed = 0; Phase = "Catalog listing";
             var settings = Plugin.Instance.Configuration;
             var client = JellyfinClient.Instance;
             var views = await client.Views(ct);
@@ -127,18 +133,21 @@ public static class CatalogSync
                 progress?.Report(10 + 60.0 * SeriesProcessed / Math.Max(1, series.Count));
             }
             next.StructureSeconds = clock.Elapsed.TotalSeconds;
+            if (settings.SkipLibraryDuplicates) LibraryMediaIndex.Load(host.Resolve<ILibraryManager>(), ct).Apply(next);
             // Atomic publish only after every upstream fetch has succeeded. Never persist sources.
             next.Completed = DateTimeOffset.UtcNow;
             Save(next);
             Phase = "Emby import and native metadata"; clock.Restart();
+            var duplicateIds = settings.SkipLibraryDuplicates ? LibraryDuplicateCleanup.Prepare(host, next, ct) : Array.Empty<long>();
             var manager = host.Resolve<IChannelManager>();
             await manager.RefreshChannelContent(manager.GetChannel<JellyfinChannel>() ?? throw new InvalidOperationException("Channel missing."), 5, null!, ct);
+            RemovedDuplicates = LibraryDuplicateCleanup.CountRemoved(host, duplicateIds, ct);
             await FolderArtwork.Apply(host, ct);
             next.ImportSeconds = clock.Elapsed.TotalSeconds; next.Imported = DateTimeOffset.UtcNow; Save(next);
             progress?.Report(100); Phase = "Idle";
         }
         catch (OperationCanceledException) { Phase = "Cancelled"; throw; }
-        catch { LastError = "Refresh failed; check the scheduled task log. Previous published data is retained."; Phase = "Failed"; throw; }
+        catch { LastError = "Refresh failed; check the scheduled task log. Native import or duplicate cleanup may be partial; retry the refresh."; Phase = "Failed"; throw; }
         finally { Gate.Release(); }
     }
 }

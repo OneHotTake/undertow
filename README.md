@@ -22,12 +22,23 @@ InfiniteDrive's code stays available. Undertow does not migrate its database, li
 - Separates anime movies and series using anime IDs or catalog origin.
 - Refreshes metadata manually or on a schedule.
 - Keeps existing titles when an upstream catalog changes. Sync is additive.
+- Optionally skips movie and series IDs already in the local library and removes matching Undertow duplicates during refresh. Series are all or nothing: a local series ID skips the entire Undertow series, even when only some episodes are owned.
 - Requests playback versions on demand and probes only the selected file.
 - Uses Emby's metadata providers, audio preferences and playback pipeline.
 - Shows recent unavailable-source diagnostics in Maintenance.
 - Includes default folder artwork in the DLL; preserves existing images.
 
 Catalog refresh fetches metadata. It does not resolve streams or write STRM and NFO files. Candidate searches can query upstream addons and indexers. The selected file's probe may resolve its final URL before playback.
+
+## Skip titles you already own
+
+The current source adds **Maintenance → Skip titles already in the local library**. It is off by default. Enable it, save, then refresh.
+
+Undertow looks up IMDb, TMDB and TVDB IDs in the local Emby library. A matching movie skips that Undertow movie. A matching series skips the **entire series**, including every season and episode. This is all or nothing: owning just one season or a few episodes still skips the whole Undertow series. Undertow does not check episode completeness or fill gaps in an owned series.
+
+Refresh also removes matching entries already imported by Undertow. It preserves local media files and the saved upstream catalog metadata. Turn the switch off, save and refresh to republish the retained entries. Pathless channel entries, remote entries and STRM movie files do not count as local ownership. A local series is identified by its library folder path. Movie and series IDs are matched separately; titles and years are not used to guess a match.
+
+This prevents duplicates between Undertow and the local library. It does not remove duplicate physical files or collapse different cuts already in that library. See [Settings](docs/settings.md) for details. V0.46.1 includes this feature.
 
 ## Install
 

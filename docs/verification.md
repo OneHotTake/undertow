@@ -1,5 +1,11 @@
 # Verification
 
+## V0.46.1: whole-title duplicate suppression — October 7, 2026
+
+Built against pinned Emby 4.10.0.40 references; **57 contract checks passed**. Production Emby 4.10.1.0 loaded V0.46.1 with the switch enabled. Its native refresh matched 132 movies and 23 series, omitting each matching series in full (1,948 cached episodes). Episode coverage is deliberately not checked. Native refresh removed 132 movie duplicates, then 2,125 additional series/season/episode records. The complete 837-title catalog snapshot remains retained.
+
+The native settings switch saved/reloaded. Disabling and refreshing republished retained titles; re-enabling and refreshing removed 2,224 channel records in the repeat cycle. All 14,720 baseline path-bearing IDs/GUIDs/paths and 70 native user-data rows remained exact; database quick_check passed. No stream opened or probed. Local-file cleanup is a separate task. This build has not been published as a GitHub release; physical-client playback was not repeated.
+
 ## V0.45.7: hourly structure settings
 
 The season/episode cache interval now uses hours (1–720), with a six-hour default for new installs. Existing day settings retain their duration when saved and reloaded as hours. All 39 contract checks passed, including legacy XML migration.

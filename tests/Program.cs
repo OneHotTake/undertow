@@ -108,4 +108,46 @@ using var upgradedXml = new StringWriter();
 configSerializer.Serialize(upgradedXml, legacyConfig);
 using var rereadXml = new StringReader(upgradedXml.ToString());
 Check(((Configuration)configSerializer.Deserialize(rereadXml)!).EffectiveSeriesRefreshHours == 168 && !upgradedXml.ToString().Contains("<SeriesRefreshDays>"), "legacy day settings survive XML save/reload as hours without retaining the retired field");
+
+var ownedMovie = new MediaBrowser.Controller.Entities.Movies.Movie {
+    Path = "/media/movies/Shawshank.mkv", ProviderIds = new MediaBrowser.Model.Entities.ProviderIdDictionary(new Dictionary<string, string> { ["Imdb"] = "tt0111161", ["Tmdb"] = "278" }) };
+var ownedIndex = new LibraryMediaIndex(new[] { ownedMovie });
+var duplicateMovie = new UpstreamItem { Id = "shawshank", Type = "Movie", Name = "Different title", ProviderIds = new() { ["IMDB"] = " TT0111161 " } };
+Check(ownedIndex.Contains(duplicateMovie), "movie provider IDs match despite title, key casing and surrounding whitespace");
+Check(ownedIndex.Contains(new() { Type = "Movie", ProviderIds = new() { ["Tmdb"] = "000278" } }), "numeric movie IDs normalize leading zeroes");
+Check(!ownedIndex.Contains(new() { Type = "Movie", Name = "The Shawshank Redemption" }) && !ownedIndex.Contains(new() { Type = "Movie", ProviderIds = new() { ["Tmdb"] = "279" } }), "same title without matching IDs and different provider IDs do not suppress movies");
+Check(!ownedIndex.Contains(new() { Type = "Series", ProviderIds = new() { ["Tmdb"] = "278" } }), "movie match cannot suppress a series with the same numeric ID");
+var streamMovie = new MediaBrowser.Controller.Entities.Movies.Movie { Path = "/media/movie.STRM", ProviderIds = ownedMovie.ProviderIds };
+var virtualMovie = new MediaBrowser.Controller.Entities.Movies.Movie { ProviderIds = ownedMovie.ProviderIds };
+var urlMovie = new MediaBrowser.Controller.Entities.Movies.Movie { Path = "https://example.invalid/movie.mkv", ProviderIds = ownedMovie.ProviderIds };
+Check(!new LibraryMediaIndex(new[] { streamMovie, virtualMovie, urlMovie }).Contains(duplicateMovie), "stream files, pathless channel movies and remote URLs never count as local copies");
+Check(!new LibraryMediaIndex(new[] { new MediaBrowser.Controller.Entities.Movies.Movie { Path = "/media/movie.mkv", ProviderIds = new MediaBrowser.Model.Entities.ProviderIdDictionary(new Dictionary<string,string> { ["Official Website"] = "same", ["Tmdb"] = "0", ["Imdb"] = "invalid" }) } }).Contains(new() { Type = "Movie", ProviderIds = new() { ["Official Website"] = "same", ["Tmdb"] = "0", ["Imdb"] = "invalid" } }), "unknown namespaces and invalid provider IDs cannot establish ownership");
+var duplicateSnapshot = new CatalogSnapshot { Items = new() { duplicateMovie }, SuppressedMovieIds = new() { "shawshank" } };
+var importedDuplicate = new MediaBrowser.Controller.Entities.Movies.Movie { ExternalId = "jf:shawshank" };
+Check(LibraryDuplicateCleanup.CanRemove(importedDuplicate, duplicateSnapshot, ownedIndex) && !LibraryDuplicateCleanup.CanRemove(ownedMovie, duplicateSnapshot, ownedIndex), "cleanup accepts only a pathless matched Undertow identity and never a local file");
+Check(!LibraryDuplicateCleanup.CanRemove(new MediaBrowser.Controller.Entities.Movies.Movie { ExternalId = "jf:other" }, duplicateSnapshot, ownedIndex) && !LibraryDuplicateCleanup.CanRemove(importedDuplicate, duplicateSnapshot, new LibraryMediaIndex(Array.Empty<MediaBrowser.Controller.Entities.BaseItem>())), "cleanup revalidates ownership and rejects unrelated imported identities");
+var savedDuplicates = JsonSerializer.Deserialize<CatalogSnapshot>(JsonSerializer.Serialize(duplicateSnapshot))!;
+Check(savedDuplicates.Items.Count == 1 && savedDuplicates.SuppressedMovieIds.Contains("shawshank"), "suppression survives restart without deleting retained catalog metadata");
+Check(!new Configuration().SkipLibraryDuplicates && !legacyConfig.SkipLibraryDuplicates, "new and older installs keep duplicate cleanup off until explicitly enabled");
+using var switchXml = new StringWriter();
+configSerializer.Serialize(switchXml, new Configuration { SkipLibraryDuplicates = true });
+using var switchReader = new StringReader(switchXml.ToString());
+Check(((Configuration)configSerializer.Deserialize(switchReader)!).SkipLibraryDuplicates, "duplicate switch survives native configuration XML save and reload");
+
+var ownedShow = new MediaBrowser.Controller.Entities.TV.Series { Path = "/media/tv/Example", InternalId = 10,
+    ProviderIds = new MediaBrowser.Model.Entities.ProviderIdDictionary(new Dictionary<string,string> { ["Tvdb"] = "81189", ["Imdb"] = "tt0903747" }) };
+var mediaIndex = new LibraryMediaIndex(new[] { ownedMovie }, new[] { ownedShow });
+var upstreamShow = new UpstreamItem { Id = "show", Type = "Series", ProviderIds = new() { ["TVDB"] = "81189" } };
+Check(mediaIndex.ContainsSeries(upstreamShow) && !mediaIndex.ContainsSeries(new() { Type = "Series", ProviderIds = new() { ["Tvdb"] = "81190" } }), "series dedup matches provider IDs without movie namespace collisions");
+Check(!mediaIndex.ContainsSeries(new() { Type = "Movie", ProviderIds = new() { ["Tvdb"] = "81189" } }) && !mediaIndex.Contains(new() { Type = "Movie", ProviderIds = new() { ["Tvdb"] = "81189" } }), "owned series cannot suppress a movie with the same numeric provider ID");
+var showSnapshot = new CatalogSnapshot { Items = new() { upstreamShow }, Children = new() {
+    ["show"] = new() { new() { Id = "season", Type = "Season", IndexNumber = 1 } },
+    ["season"] = new() { new() { Id = "ep1", Type = "Episode", IndexNumber = 1 }, new() { Id = "ep2", Type = "Episode", IndexNumber = 2 } } } };
+mediaIndex.Apply(showSnapshot);
+Check(showSnapshot.SuppressedSeriesIds.Contains("show") && showSnapshot.SuppressedSeasonIds.Contains("season") && showSnapshot.SuppressedEpisodeIds.SetEquals(new[] { "ep1", "ep2" }), "local series suppresses the entire upstream hierarchy without checking episode coverage");
+Check(LibraryDuplicateCleanup.IsSuppressed(upstreamShow, showSnapshot) && LibraryDuplicateCleanup.IsSuppressed(showSnapshot.Children["season"][0], showSnapshot), "series and episode browse filtering use the same whole-series suppression");
+Check(showSnapshot.Items.Count == 1 && showSnapshot.Children["season"].Count == 2, "whole-series suppression retains all source metadata for reversible republication");
+var emptyShow = new CatalogSnapshot { Items = new() { upstreamShow } }; mediaIndex.Apply(emptyShow);
+Check(emptyShow.SuppressedSeriesIds.Contains("show"), "a series ID match does not depend on cached seasons or full episode ownership");
+Check(!new LibraryMediaIndex(Array.Empty<MediaBrowser.Controller.Entities.BaseItem>(), new[] { new MediaBrowser.Controller.Entities.TV.Series { ProviderIds = ownedShow.ProviderIds } }).ContainsSeries(upstreamShow), "pathless Undertow series never counts as local ownership");
 Console.WriteLine($"{checks} contract checks passed.");

@@ -20,6 +20,7 @@ Anime-specific IDs take precedence over TMDB/TVDB IDs. A marked anime catalog al
 
 | Setting or action | Meaning |
 | --- | --- |
+| Skip titles already in the local library | Off by default. Match IMDb, TMDB or TVDB IDs against local movies and series. A movie match skips that movie; a series match skips the entire series, all seasons and every episode—even if only some local episodes exist. Save, then refresh to remove already-imported Undertow duplicates. |
 | Enable scheduled refresh | Controls automatic refresh. Manual refresh remains available when the schedule is off. |
 | Refresh interval | 1–168 hours; default 6. Emby's task checks hourly, then refreshes when due. |
 | Refresh existing seasons and episodes | 1–720 hours; default 6. New series fetch on the next sync. Existing structure uses this cache period. |
@@ -36,3 +37,7 @@ Older saved day intervals migrate to their equivalent hours. New installations d
 There are no Infuse bridge or listener-port settings. Connect Infuse directly to the Jellyfin source. Old adapter configuration fields are retired; see [migration](migration.md).
 
 Folder artwork is a default. Undertow installs it only when a folder has no primary image. Sync preserves existing artwork, including images you upload.
+
+The duplicate switch is **all or nothing for series**. It does not compare episode coverage and does not fill missing seasons or episodes in a series already present locally. Movie and series provider IDs have separate matching namespaces; the same numeric movie/TV ID cannot cross-match. Local movies require a video path; local series require their library folder path. Placeholder, pathless and remote entries do not count as ownership. STRM movie files do not count as local movies.
+
+The complete catalog metadata remains saved. Every refresh rechecks local ownership. Removing a local title makes its Undertow entry eligible again. Turning the switch off and refreshing republishes retained titles. Title/year guessing is never used. Two local files of the same film or episode are outside this feature. Before native pruning, matching entry IDs and catalog metadata are journaled under the private plugin data directory `duplicate-backups/`. This is not a complete watch-state/database backup.

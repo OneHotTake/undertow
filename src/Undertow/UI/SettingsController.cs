@@ -129,10 +129,11 @@ public sealed class ConnectionView : PluginPageView
 public sealed class MaintenanceOptions : EditableOptionsBase
 {
     public override string EditorTitle => "Maintenance";
-    public override string EditorDescription => "Refresh catalogs, check sync status and choose playback preferences. Each sync keeps existing titles and watch progress.";
+    public override string EditorDescription => "Refresh catalogs, check sync status and choose playback preferences. Sync retains catalog metadata. Optional duplicate cleanup removes only Undertow entries matched to local files.";
     public StatusItem State { get; set; } = new("Library status", "Ready", ItemStatus.None);
     public CaptionItem Summary { get; set; } = new("Your catalog");
     public LabelItem Counts { get; set; } = new("");
+    public LabelItem DuplicateStatus { get; set; } = new("");
     public LabelItem LastSync { get; set; } = new("");
     public LabelItem Duration { get; set; } = new("");
     public LabelItem NextSync { get; set; } = new("");
@@ -146,13 +147,16 @@ public sealed class MaintenanceOptions : EditableOptionsBase
     [DisplayName("Refresh existing seasons and episodes every (hours)")]
     [Description("1–720 hours. New series are fetched on the next sync. Existing series reuse cached episode metadata for this period.")]
     public int SeriesRefreshHours { get; set; } = 6;
+    [DisplayName("Skip titles already in the local library")]
+    [Description("Match IMDb, TMDB or TVDB IDs against local movies and series. Save, then refresh. A matching local series skips the entire Undertow series, even if you own only some episodes. Catalog metadata is retained; local files and stream-file libraries are unchanged.")]
+    public bool SkipLibraryDuplicates { get; set; }
     public CaptionItem Actions { get; set; } = new("Refresh your library");
-    public LabelItem RefreshHelp { get; set; } = new("Check selected catalogs for additions and update Emby. Existing titles and watch progress are kept. Files are opened and probed when playback starts.");
+    public LabelItem RefreshHelp { get; set; } = new("Check selected catalogs for additions and update Emby. Catalog metadata is retained; enabled duplicate cleanup removes matched Undertow entries. Files are opened and probed when playback starts.");
     public ButtonItem Refresh { get; set; } = new("Refresh now") { Data1 = "Refresh", Icon = IconNames.refresh };
     public ButtonItem CancelRun { get; set; } = new("Cancel current refresh") { Data1 = "Cancel", Icon = IconNames.close };
     public CaptionItem Recovery { get; set; } = new("Full rebuild");
-    public LabelItem RebuildHelp { get; set; } = new("Fetch every selected catalog, season and episode again, then update Emby. Use this to recheck cached metadata. Existing titles and watch progress are kept.");
-    public ButtonItem Rebuild { get; set; } = new("Rebuild catalog…") { Data1 = "Rebuild", Icon = IconNames.warning, ConfirmationPrompt = "Rebuild the catalog? All selected catalogs, seasons and episodes will be fetched again. Titles and watch progress are retained. This can take several minutes." };
+    public LabelItem RebuildHelp { get; set; } = new("Fetch every selected catalog, season and episode again, then update Emby. Use this to recheck cached metadata. Catalog metadata is retained; enabled duplicate cleanup still applies.");
+    public ButtonItem Rebuild { get; set; } = new("Rebuild catalog…") { Data1 = "Rebuild", Icon = IconNames.warning, ConfirmationPrompt = "Rebuild the catalog? All selected catalogs, seasons and episodes will be fetched again. Catalog metadata is retained; enabled duplicate cleanup still applies. This can take several minutes." };
     public CaptionItem Unavailable { get; set; } = new("Recent unavailable titles");
     public LabelItem UnavailableHelp { get; set; } = new("Reasons from recent playback requests. No background searches. The last ten misses are kept until Emby restarts; a successful source lookup clears that title.");
     public LabelItem UnavailableTitles { get; set; } = new("");
@@ -169,12 +173,13 @@ public sealed class MaintenanceView : PluginPageView
     public MaintenanceView(string id) : base(id)
     {
         var c = Plugin.Instance.Configuration;
-        ContentData = new MaintenanceOptions { Enabled = c.Enabled, RefreshHours = c.RefreshHours, SeriesRefreshHours = c.EffectiveSeriesRefreshHours, MaximumVersions = c.MaximumVersions, Preferred4KSizeGb = c.Preferred4KSizeGb };
+        ContentData = new MaintenanceOptions { SkipLibraryDuplicates = c.SkipLibraryDuplicates, Enabled = c.Enabled, RefreshHours = c.RefreshHours, SeriesRefreshHours = c.EffectiveSeriesRefreshHours, MaximumVersions = c.MaximumVersions, Preferred4KSizeGb = c.Preferred4KSizeGb };
         UpdateStatus();
     }
     private void UpdateStatus()
     {
         var ui = (MaintenanceOptions)ContentData; var s = CatalogSync.Snapshot;
+        ui.DuplicateStatus.Text = $"{s.SuppressedMovieIds.Count:N0} movies and {s.SuppressedSeriesIds.Count:N0} series matched; {s.SuppressedEpisodeIds.Count:N0} episodes omitted with their series; {CatalogSync.RemovedDuplicates:N0} Undertow entries removed by the latest refresh in this session. Filter is {(Plugin.Instance.Configuration.SkipLibraryDuplicates ? "enabled" : "disabled")}.";
         var running = CatalogSync.Phase is "Catalog listing" or "Season and episode metadata" or "Emby import and native metadata";
         ui.State.Status = running ? ItemStatus.InProgress : string.IsNullOrEmpty(CatalogSync.LastError) ? (s.Imported == default ? ItemStatus.None : ItemStatus.Succeeded) : ItemStatus.Failed;
         ui.State.StatusText = running ? CatalogSync.Phase + $" · {CatalogSync.CatalogPages:N0} pages · {CatalogSync.SeriesProcessed:N0} series checked" : string.IsNullOrEmpty(CatalogSync.LastError) ? (s.Imported == default ? "Waiting for first sync" : "Up to date with the last completed sync") : CatalogSync.LastError;
@@ -212,12 +217,13 @@ public sealed class MaintenanceView : PluginPageView
         using var values = JsonDocument.Parse(data);
         var value = values.RootElement;
         ui.Enabled = value.GetProperty(nameof(ui.Enabled)).GetBoolean();
+        ui.SkipLibraryDuplicates = value.TryGetProperty(nameof(ui.SkipLibraryDuplicates), out var skip) ? skip.GetBoolean() : Plugin.Instance.Configuration.SkipLibraryDuplicates;
         ui.RefreshHours = SettingsValues.Integer(value, nameof(ui.RefreshHours));
         ui.SeriesRefreshHours = SettingsValues.Integer(value, nameof(ui.SeriesRefreshHours));
         ui.MaximumVersions = SettingsValues.Integer(value, nameof(ui.MaximumVersions));
         ui.Preferred4KSizeGb = SettingsValues.Integer(value, nameof(ui.Preferred4KSizeGb));
         if (ui.RefreshHours is < 1 or > 168 || ui.SeriesRefreshHours is < 1 or > 720 || ui.MaximumVersions is < 1 or > 50 || ui.Preferred4KSizeGb is < 1 or > 200) throw new ArgumentException("Setting outside its supported range.");
-        var c = Plugin.Instance.Configuration; c.Enabled = ui.Enabled; c.RefreshHours = ui.RefreshHours; c.SeriesRefreshHours = ui.SeriesRefreshHours; c.MaximumVersions = ui.MaximumVersions; c.Preferred4KSizeGb = ui.Preferred4KSizeGb;
+        var c = Plugin.Instance.Configuration; c.Enabled = ui.Enabled; c.SkipLibraryDuplicates = ui.SkipLibraryDuplicates; c.RefreshHours = ui.RefreshHours; c.SeriesRefreshHours = ui.SeriesRefreshHours; c.MaximumVersions = ui.MaximumVersions; c.Preferred4KSizeGb = ui.Preferred4KSizeGb;
         Plugin.Instance.SaveConfiguration(); UpdateStatus(); return Task.FromResult<IPluginUIView>(this);
     }
 }

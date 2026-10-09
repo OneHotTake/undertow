@@ -6,6 +6,7 @@
 - [Remux](remux.md): compatible-server setup and tested scope.
 - [Infuse](infuse.md): direct Jellyfin connections and the retired adapter limit.
 - [Settings](settings.md): every field and action.
+- [Movie availability](movie-availability.md): recent-movie publication, paced source checks, budgets and recovery.
 - [Compatibility](compatibility.md): tested servers, API subset and known gaps.
 - [Migration](migration.md): retire InfiniteDrive without touching owned media.
 - [Verification](verification.md): dated tests and their limits.

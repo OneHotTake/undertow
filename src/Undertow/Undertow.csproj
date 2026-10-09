@@ -5,8 +5,8 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Undertow</AssemblyName>
     <RootNamespace>Jellyembifier</RootNamespace>
-    <Version>0.46.1</Version>
-    <AssemblyVersion>0.46.1.0</AssemblyVersion>
+    <Version>0.47.0</Version>
+    <AssemblyVersion>0.47.0.0</AssemblyVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
   </PropertyGroup>

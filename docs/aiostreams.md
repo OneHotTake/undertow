@@ -22,6 +22,8 @@ Emby’s preferred audio language applies after the selected file is probed. Dis
 
 Our profile is shared with Infuse. Editing its catalogs or release policy affects both clients. Use a separate profile if you want independent behavior.
 
+Undertow V0.47.0 has an optional [recent-movie availability gate](movie-availability.md), off by default. It uses the saved profile's normal candidate lookup for recent movies without a confirmed home release, paced separately from metadata sync. Any usable candidate permits Emby publication; a completed empty result withholds/removes that Undertow movie. It does not change this shared profile or the direct Infuse catalog. Errors preserve the prior decision, and only playback opens/probes the selected video.
+
 ## Tested scope
 
 AIOMetadata 3.2.0 with AIOStreams 2.34.1 was tested on October 6, 2026: library import, additive refresh, stable native IDs, selected-file probing, language selection and short playback. See [verification](verification.md) for timings and open findings. App Store approval has not been tested or promised; a server-side bridge does not establish a client’s distribution eligibility.

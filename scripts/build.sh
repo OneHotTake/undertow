@@ -13,5 +13,7 @@ done
 docker run --rm -e DOTNET_CLI_TELEMETRY_OPTOUT=1 -v "$PWD:/src" -w /src \
   mcr.microsoft.com/dotnet/sdk:8.0 dotnet publish src/Undertow/Undertow.csproj -c Release -o artifacts --nologo
 docker run --rm -e DOTNET_CLI_TELEMETRY_OPTOUT=1 -v "$PWD:/src" -w /src \
-  mcr.microsoft.com/dotnet/sdk:8.0 dotnet run --project tests/Contracts.csproj -c Release --no-launch-profile
+  mcr.microsoft.com/dotnet/sdk:8.0 dotnet build tests/Contracts.csproj -c Release --nologo -p:UseAppHost=false
+docker run --rm -e DOTNET_CLI_TELEMETRY_OPTOUT=1 -v "$PWD:/src" -w /src \
+  mcr.microsoft.com/dotnet/sdk:8.0 dotnet tests/bin/Release/net8.0/Contracts.dll
 sha256sum artifacts/Undertow.dll

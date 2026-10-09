@@ -63,6 +63,7 @@ public sealed class JellyfinChannel : IChannel, IHasChannelFeatures
         else rows = snapshot.Children.TryGetValue(folder, out var children) ? children : new();
         if (labels.SkipLibraryDuplicates)
             rows = rows.Where(x => !LibraryDuplicateCleanup.IsSuppressed(x, snapshot)).ToList();
+        rows = rows.Where(x => !MovieAvailability.Hidden(x)).ToList();
         var mapped = rows.Select(Map).ToList();
         return Task.FromResult(new ChannelItemResult { TotalRecordCount = mapped.Count, Items = mapped.Skip(query.StartIndex ?? 0).Take(query.Limit ?? mapped.Count).ToList() });
     }

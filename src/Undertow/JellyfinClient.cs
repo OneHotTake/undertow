@@ -48,6 +48,7 @@ public sealed class CatalogPage
 
 public sealed class JellyfinClient
 {
+    private readonly SourceLookupCache sourceCache = new();
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -155,21 +156,45 @@ public sealed class JellyfinClient
 
     public async Task<List<MediaSourceInfo>> Resolve(string id, CancellationToken ct)
     {
-        Interlocked.Increment(ref PlaybackRequests);
-        var result = await Request(u => "Items/" + Esc(id) + "/PlaybackInfo?UserId=" + Esc(u), ct, playback: true);
-        result = NormalizePlaybackPaths(result, http.BaseAddress!, id, userId, token);
-        var c = Plugin.Instance.Configuration;
         try
         {
+            var response = await SourceLookup(id, ct);
+            var result = NormalizePlaybackPaths(response.Value, http.BaseAddress!, id, userId, token);
+            var c = Plugin.Instance.Configuration;
             var sources = TranslateSources(result, c.MaximumVersions, c.Preferred4KSizeGb);
             PlaybackDiagnostics.Success(id);
+            MovieAvailability.Observe(id, true, response.Checked);
             return sources;
         }
-        catch (InvalidOperationException)
+        catch (NoPlayableSourcesException ex)
         {
-            PlaybackDiagnostics.Miss(id, PlaybackDiagnostics.Reason(result));
+            // Placeholder/filter diagnostics are populated inside SourceLookup, without storing raw messages.
+            MovieAvailability.Observe(id, false, ex.CheckedAt);
             throw;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch { MovieAvailability.Observe(id, null); throw; }
+    }
+
+    private async Task<SourceLookupResponse> SourceLookup(string id, CancellationToken ct)
+    {
+        var cache = Plugin.Instance.Configuration.CheckRecentMovieAvailability &&
+            CatalogSync.Snapshot.Items.Any(x => x.Id == id && MovieAvailabilityPolicy.IsRecent(x, DateTimeOffset.UtcNow));
+        var response = await sourceCache.Get(id, cache, async cancellation =>
+        {
+            Interlocked.Increment(ref PlaybackRequests);
+            return await Request(u => "Items/" + Esc(id) + "/PlaybackInfo?UserId=" + Esc(u), cancellation, playback: true);
+        }, ct);
+        try
+        {
+            TranslateSources(NormalizePlaybackPaths(response.Value, http.BaseAddress!, id, userId, token));
+        }
+        catch (NoPlayableSourcesException)
+        {
+            PlaybackDiagnostics.Miss(id, PlaybackDiagnostics.Reason(response.Value));
+            throw new NoPlayableSourcesException(response.Checked);
+        }
+        return response;
     }
 
     public static JsonElement NormalizePlaybackPaths(JsonElement result, Uri server, string itemId, string userId, string accessToken)
@@ -225,10 +250,15 @@ public sealed class JellyfinClient
             });
 
         }
-        if (sources.Count == 0) throw new InvalidOperationException("No playable direct HTTP source returned by upstream.");
+        if (sources.Count == 0) throw new NoPlayableSourcesException();
         return sources.OrderByDescending(x => x.MediaStreams.Any(t => t.Type == MediaStreamType.Video && t.Width >= 3000))
             .ThenBy(x => x.MediaStreams.Any(t => t.Type == MediaStreamType.Video && t.Width >= 3000)
                 ? Math.Abs((x.Size ?? long.MaxValue / 2) - Math.Clamp(preferred4KSizeGb, 1, 200) * 1_000_000_000L) : x.Size ?? long.MaxValue)
             .Take(Math.Clamp(maximumVersions, 1, 50)).ToList();
     }
+}
+
+public sealed class NoPlayableSourcesException(DateTimeOffset? checkedAt = null) : InvalidOperationException("No playable direct HTTP source returned by upstream.")
+{
+    public DateTimeOffset? CheckedAt { get; } = checkedAt;
 }

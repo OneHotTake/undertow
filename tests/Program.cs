@@ -150,4 +150,71 @@ Check(showSnapshot.Items.Count == 1 && showSnapshot.Children["season"].Count == 
 var emptyShow = new CatalogSnapshot { Items = new() { upstreamShow } }; mediaIndex.Apply(emptyShow);
 Check(emptyShow.SuppressedSeriesIds.Contains("show"), "a series ID match does not depend on cached seasons or full episode ownership");
 Check(!new LibraryMediaIndex(Array.Empty<MediaBrowser.Controller.Entities.BaseItem>(), new[] { new MediaBrowser.Controller.Entities.TV.Series { ProviderIds = ownedShow.ProviderIds } }).ContainsSeries(upstreamShow), "pathless Undertow series never counts as local ownership");
+var availabilityNow = new DateTimeOffset(2026, 10, 9, 0, 0, 0, TimeSpan.Zero);
+var recentMovie = new UpstreamItem { Id = "recent", Type = "Movie", PremiereDate = availabilityNow.AddDays(-30), ProviderIds = new() { ["Tmdb"] = "123" } };
+var recentEntry = new MovieAvailabilityEntry { TmdbId = "123", MetadataChecked = availabilityNow, HasReleaseDates = true };
+Check(MovieAvailabilityPolicy.Rule(recentMovie, recentEntry, availabilityNow) == MovieReleaseRule.NeedsSources && MovieAvailabilityPolicy.Hidden(recentMovie, recentEntry, availabilityNow), "recent movie without home-release evidence waits for a source result");
+Check(!MovieAvailabilityPolicy.Hidden(recentMovie, new() { TmdbId = "123", MetadataChecked = availabilityNow, Published = true }, availabilityNow), "an existing movie remains visible until its first conclusive source result");
+MovieAvailabilityPolicy.Observe(recentEntry, true, availabilityNow);
+Check(!MovieAvailabilityPolicy.Hidden(recentMovie, recentEntry, availabilityNow), "any accepted source publishes an eligible movie without probing media");
+MovieAvailabilityPolicy.Observe(recentEntry, null, availabilityNow.AddHours(1));
+Check(recentEntry.Available == true && recentEntry.SourceError && !MovieAvailabilityPolicy.Hidden(recentMovie, recentEntry, availabilityNow), "transport failure retains an available movie rather than treating it as empty");
+MovieAvailabilityPolicy.Observe(recentEntry, false, availabilityNow.AddDays(1));
+Check(MovieAvailabilityPolicy.Hidden(recentMovie, recentEntry, availabilityNow.AddDays(1)), "definitive empty response hides a previously available movie");
+MovieAvailabilityPolicy.Observe(recentEntry, null, availabilityNow.AddDays(2));
+Check(recentEntry.Available == false && recentEntry.SourceError, "transport failure retains a previous empty decision without manufacturing a source");
+MovieAvailabilityPolicy.Observe(recentEntry, true, availabilityNow.AddDays(3));
+Check(!MovieAvailabilityPolicy.Hidden(recentMovie, recentEntry, availabilityNow.AddDays(3)), "a later positive lookup republishes retained metadata");
+MovieAvailabilityPolicy.Observe(recentEntry, false, availabilityNow.AddDays(2));
+Check(recentEntry.Available == true, "older cached response cannot overwrite a newer source observation");
+var upcomingMovie = new UpstreamItem { Type = "Movie", PremiereDate = availabilityNow.AddDays(2) };
+Check(MovieAvailabilityPolicy.Rule(upcomingMovie, recentEntry, availabilityNow) == MovieReleaseRule.Upcoming && MovieAvailabilityPolicy.Hidden(upcomingMovie, recentEntry, availabilityNow), "future premiere waits without a scheduled source search");
+Check(MovieAvailabilityPolicy.Rule(new() { Type = "Movie", PremiereDate = availabilityNow.AddDays(-365) }, null, availabilityNow) == MovieReleaseRule.Ordinary &&
+    MovieAvailabilityPolicy.Rule(new() { Type = "Series", PremiereDate = availabilityNow }, null, availabilityNow) == MovieReleaseRule.Ordinary &&
+    MovieAvailabilityPolicy.Rule(new() { Type = "Movie" }, null, availabilityNow) == MovieReleaseRule.Ordinary, "older movies, series and movies without a usable premiere date are outside the gate");
+Check(!MovieAvailabilityPolicy.Hidden(recentMovie, new() { Published = true, MetadataError = true }, availabilityNow) &&
+    MovieAvailabilityPolicy.Hidden(recentMovie, null, availabilityNow), "unknown release metadata retains an existing entry while withholding an unverified new title");
+var homeEntry = new MovieAvailabilityEntry { TmdbId = "123", MetadataChecked = availabilityNow, HomeRelease = availabilityNow.AddDays(-1) };
+Check(MovieAvailabilityPolicy.Rule(recentMovie, homeEntry, availabilityNow) == MovieReleaseRule.Ordinary, "past home release leaves the special source-check queue without claiming playback success");
+homeEntry.TmdbId = "124";
+Check(MovieAvailabilityPolicy.Rule(recentMovie, homeEntry, availabilityNow) == MovieReleaseRule.MetadataUnknown, "release evidence cannot cross a changed TMDB identity");
+using (var releases = JsonDocument.Parse("""{"results":[{"iso_3166_1":"US","release_dates":[{"type":3,"release_date":"2026-09-01T00:00:00Z"},{"type":4,"release_date":"2026-11-01T00:00:00Z"}]},{"iso_3166_1":"GB","release_dates":[{"type":5,"release_date":"2026-10-01T00:00:00Z"},{"type":6,"release_date":"2026-10-02T00:00:00Z"}]}]}"""))
+{
+    var parsedDates = ReleaseDates.Parse(releases.RootElement);
+    Check(parsedDates.HasDates && parsedDates.HomeRelease == new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero), "release parsing accepts digital, physical and TV across countries without confusing theatrical dates");
+}
+Check(!MovieAvailabilityPolicy.BudgetAllows(new[] { availabilityNow.AddSeconds(-59) }, availabilityNow) &&
+    MovieAvailabilityPolicy.BudgetAllows(new[] { availabilityNow.AddMinutes(-1) }, availabilityNow), "persisted global budget prevents more than one background source attempt per minute");
+var fullBudget = Enumerable.Range(0, MovieAvailabilityPolicy.DailyLimit).Select(i => availabilityNow.AddMinutes(-i - 2)).ToList();
+Check(!MovieAvailabilityPolicy.BudgetAllows(fullBudget, availabilityNow) && MovieAvailabilityPolicy.BudgetAllows(fullBudget, availabilityNow.AddHours(24)), "48-attempt ceiling uses a rolling 24-hour window");
+Check(!MovieAvailabilityPolicy.Due(new() { Attempted = availabilityNow.AddHours(-23) }, availabilityNow) &&
+    MovieAvailabilityPolicy.Due(new() { Attempted = availabilityNow.AddHours(-24) }, availabilityNow), "per-movie daily cooldown includes reserved failed/cancelled attempts");
+var durableAvailability = JsonSerializer.Deserialize<MovieAvailabilityState>(JsonSerializer.Serialize(new MovieAvailabilityState { Movies = new() { ["recent"] = recentEntry }, BackgroundAttempts = fullBudget }))!;
+Check(durableAvailability.Movies["recent"].Available == true && !MovieAvailabilityPolicy.BudgetAllows(durableAvailability.BackgroundAttempts, availabilityNow), "restart preserves positive evidence and consumed search allowance");
+Check(!new Configuration().CheckRecentMovieAvailability && !legacyConfig.CheckRecentMovieAvailability, "new and existing installs keep background source discovery off until opted in");
+var cacheNow = availabilityNow;
+var sourceCache = new SourceLookupCache(() => cacheNow);
+var fetches = 0;
+async Task<JsonElement> FakeSources(CancellationToken ct) { Interlocked.Increment(ref fetches); await Task.Delay(10, ct); return response.RootElement; }
+await Task.WhenAll(sourceCache.Get("same", true, FakeSources, CancellationToken.None), sourceCache.Get("same", true, FakeSources, CancellationToken.None));
+Check(fetches == 1, "simultaneous recent-movie source requests share one upstream lookup");
+cacheNow = cacheNow.AddMinutes(1);
+await sourceCache.Get("same", true, FakeSources, CancellationToken.None);
+Check(fetches == 2, "short candidate cache expires after one minute");
+await sourceCache.Get("same", false, FakeSources, CancellationToken.None);
+Check(fetches == 3, "ordinary movies keep fresh on-demand source behavior");
+var emptyFetches = 0;
+Task<JsonElement> FakeEmpty(CancellationToken _) { emptyFetches++; return Task.FromResult(empty.RootElement); }
+await sourceCache.Get("empty", true, FakeEmpty, CancellationToken.None);
+await sourceCache.Get("empty", true, FakeEmpty, CancellationToken.None);
+Check(emptyFetches == 1, "completed empty responses also suppress immediate duplicate indexer searches");
+var failedFetches = 0;
+Task<JsonElement> FakeFailure(CancellationToken _) { failedFetches++; throw new HttpRequestException("fixture failure"); }
+for (var attempt = 0; attempt < 2; attempt++)
+    try { await sourceCache.Get("error", true, FakeFailure, CancellationToken.None); }
+    catch (HttpRequestException) { }
+Check(failedFetches == 2, "request failures are never cached as empty candidate responses");
+using var malformed = JsonDocument.Parse("{\"MediaSources\":null}");
+try { await sourceCache.Get("malformed", true, _ => Task.FromResult(malformed.RootElement), CancellationToken.None); throw new Exception("Accepted malformed sources"); }
+catch (JsonException) { checks++; Console.WriteLine("PASS malformed source response is an error rather than an empty search"); }
 Console.WriteLine($"{checks} contract checks passed.");

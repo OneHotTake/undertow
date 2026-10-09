@@ -26,6 +26,7 @@ public sealed class CatalogSnapshot
 public static class CatalogSync
 {
     private static readonly SemaphoreSlim Gate = new(1, 1);
+    public static bool IsRunning => Gate.CurrentCount == 0;
     public static string Phase { get; private set; } = "Idle";
     public static string LastError { get; private set; } = "";
     public static int CatalogPages { get; private set; }
@@ -134,21 +135,50 @@ public static class CatalogSync
             }
             next.StructureSeconds = clock.Elapsed.TotalSeconds;
             if (settings.SkipLibraryDuplicates) LibraryMediaIndex.Load(host.Resolve<ILibraryManager>(), ct).Apply(next);
+            Phase = "Release date metadata";
+            await MovieAvailability.RefreshMetadata(next, host, ct);
             // Atomic publish only after every upstream fetch has succeeded. Never persist sources.
             next.Completed = DateTimeOffset.UtcNow;
             Save(next);
             Phase = "Emby import and native metadata"; clock.Restart();
-            var duplicateIds = settings.SkipLibraryDuplicates ? LibraryDuplicateCleanup.Prepare(host, next, ct) : Array.Empty<long>();
+            var duplicateIds = settings.SkipLibraryDuplicates || settings.CheckRecentMovieAvailability ? LibraryDuplicateCleanup.Prepare(host, next, ct) : Array.Empty<long>();
+            var availabilityRevision = MovieAvailability.Revision;
             var manager = host.Resolve<IChannelManager>();
             await manager.RefreshChannelContent(manager.GetChannel<JellyfinChannel>() ?? throw new InvalidOperationException("Channel missing."), 5, null!, ct);
             RemovedDuplicates = LibraryDuplicateCleanup.CountRemoved(host, duplicateIds, ct);
             await FolderArtwork.Apply(host, ct);
+            MovieAvailability.Published(next, availabilityRevision);
             next.ImportSeconds = clock.Elapsed.TotalSeconds; next.Imported = DateTimeOffset.UtcNow; Save(next);
             progress?.Report(100); Phase = "Idle";
         }
         catch (OperationCanceledException) { Phase = "Cancelled"; throw; }
         catch { LastError = "Refresh failed; check the scheduled task log. Native import or duplicate cleanup may be partial; retry the refresh."; Phase = "Failed"; throw; }
         finally { Gate.Release(); }
+    }
+
+    public static async Task RunAvailability(IApplicationHost host, CancellationToken ct)
+    {
+        if (!Plugin.Instance.Configuration.CheckRecentMovieAvailability || Snapshot.Completed == default || !await Gate.WaitAsync(0, ct)) return;
+        try
+        {
+            Phase = "Recent movie source check";
+            await MovieAvailability.CheckNext(Snapshot, ct);
+            // Native import follows a visibility change; normal catalog sync also applies date transitions.
+            if (MovieAvailability.Pending)
+            {
+                Phase = "Availability publication";
+                var revision = MovieAvailability.Revision;
+                var removed = LibraryDuplicateCleanup.Prepare(host, Snapshot, ct);
+                var manager = host.Resolve<IChannelManager>();
+                await manager.RefreshChannelContent(manager.GetChannel<JellyfinChannel>() ?? throw new InvalidOperationException("Channel missing."), 5, null!, ct);
+                RemovedDuplicates = LibraryDuplicateCleanup.CountRemoved(host, removed, ct);
+                MovieAvailability.Published(Snapshot, revision);
+            }
+            if (LastError.StartsWith("Recent-movie availability", StringComparison.Ordinal)) LastError = "";
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { LastError = "Recent-movie availability update failed; prior lookup decisions are retained. Check the scheduled task and refresh status."; throw; }
+        finally { Phase = "Idle"; Gate.Release(); }
     }
 }
 

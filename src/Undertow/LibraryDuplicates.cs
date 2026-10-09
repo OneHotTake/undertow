@@ -96,7 +96,7 @@ public static class LibraryDuplicateCleanup
         var candidates = library.GetItemList(new InternalItemsQuery { ParentIds = new[] { channel.InternalId },
             Recursive = true, IncludeItemTypes = new[] { "Movie", "Series", "Season", "Episode" }, HasPath = false }, ct);
         var suppressed = snapshot.Items.Concat(snapshot.Children.Values.SelectMany(x => x))
-            .Where(x => IsSuppressed(x, snapshot)).Select(x => JellyfinChannel.Encode(x.Id)).ToHashSet(StringComparer.Ordinal);
+            .Where(x => IsSuppressed(x, snapshot) || MovieAvailability.Hidden(x)).Select(x => JellyfinChannel.Encode(x.Id)).ToHashSet(StringComparer.Ordinal);
         var duplicates = candidates.Where(x => string.IsNullOrWhiteSpace(x.Path) && suppressed.Contains(x.ExternalId)).ToList();
         if (duplicates.Count == 0) return Array.Empty<long>();
         // Keep the complete catalog and a removal journal before changing native channel records.
@@ -104,6 +104,15 @@ public static class LibraryDuplicateCleanup
         Directory.CreateDirectory(directory);
         File.WriteAllText(Path.Combine(directory, "catalog.json"), JsonSerializer.Serialize(snapshot));
         File.WriteAllText(Path.Combine(directory, "removed.json"), JsonSerializer.Serialize(duplicates.Select(x => new { x.InternalId, x.ExternalId })));
+        // Native user-data keys normally survive channel removal. Preserve a per-item receipt as well.
+#pragma warning disable CS0618 // Pinned ABI compatibility; this bounded per-removal receipt needs every native user's data.
+        var users = host.Resolve<IUserManager>().Users.ToArray();
+#pragma warning restore CS0618
+        File.WriteAllText(Path.Combine(directory, "user-data.json"), JsonSerializer.Serialize(duplicates.Select(item => new
+        {
+            item.ExternalId,
+            Users = users.Select(user => new { user.InternalId, Data = BaseItem.UserDataManager.GetUserData(user, item) })
+        })));
         return duplicates.Select(x => x.InternalId).ToArray();
     }
     public static int CountRemoved(IApplicationHost host, long[] previous, CancellationToken ct)

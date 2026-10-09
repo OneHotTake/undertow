@@ -21,6 +21,8 @@ Anime-specific IDs take precedence over TMDB/TVDB IDs. A marked anime catalog al
 | Setting or action | Meaning |
 | --- | --- |
 | Skip titles already in the local library | Off by default. Match IMDb, TMDB or TVDB IDs against local movies and series. A movie match skips that movie; a series match skips the entire series, all seasons and every episode—even if only some local episodes exist. Save, then refresh to remove already-imported Undertow duplicates. |
+| Check recent movies without a confirmed home release | Off by default. For recent movies without a past digital/physical/TV date, require usable source candidates before publication. Upcoming movies wait for their premiere. Empty results withhold/remove Undertow entries; errors retain the prior decision. Save, then refresh. |
+| TMDB API key or read access token | Release-date metadata credential for the optional availability gate. Stored privately; leave blank to retain it. Never returned in the page model. |
 | Enable scheduled refresh | Controls automatic refresh. Manual refresh remains available when the schedule is off. |
 | Refresh interval | 1–168 hours; default 6. Emby's task checks hourly, then refreshes when due. |
 | Refresh existing seasons and episodes | 1–720 hours; default 6. New series fetch on the next sync. Existing structure uses this cache period. |
@@ -35,6 +37,8 @@ Anime-specific IDs take precedence over TMDB/TVDB IDs. A marked anime catalog al
 Older saved day intervals migrate to their equivalent hours. New installations default to six hours for both catalog and series structure. Save interval and playback settings before expecting them to apply. Rebuild is a metadata recheck, not a delete-all button. A title disappearing upstream is not permission to delete it locally.
 
 There are no Infuse bridge or listener-port settings. Connect Infuse directly to the Jellyfin source. Old adapter configuration fields are retired; see [migration](migration.md).
+
+The optional [recent-movie availability task](movie-availability.md) checks one due title per minute, once per title per 24 hours, with a ceiling of 48 background source attempts per rolling 24 hours. It deliberately queries the source's addons/indexers for this subset, without opening or probing video. Its schedule is separate from catalog refresh. Normal playback results satisfy the daily check. Older movies and series remain outside the queue; a passed home-release date is not a stream guarantee.
 
 Folder artwork is a default. Undertow installs it only when a folder has no primary image. Sync preserves existing artwork, including images you upload.
 

@@ -19,7 +19,7 @@ public static class ConnectionStore
             throw new InvalidOperationException("This catalog belongs to the saved source. Use a separate Emby instance for a different server or profile. You can update the password here.");
         var changed = current.Url.TrimEnd('/') != url.TrimEnd('/') || current.Username != profileId || (!string.IsNullOrEmpty(password) && current.Password != password);
         if (!changed) return;
-        if (CatalogSync.Phase is "Catalog listing" or "Season and episode metadata" or "Emby import and native metadata") throw new InvalidOperationException("Wait for the current sync before changing the connection.");
+        if (CatalogSync.IsRunning) throw new InvalidOperationException("Wait for the current sync before changing the connection.");
         current.Url = url.TrimEnd('/'); current.Username = profileId;
         if (!string.IsNullOrEmpty(password)) current.Password = password;
         if (string.IsNullOrEmpty(current.Password)) throw new ArgumentException("Password is required.");

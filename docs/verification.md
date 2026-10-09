@@ -1,5 +1,17 @@
 # Verification
 
+## V0.47.0: recent-movie availability — October 8, 2026
+
+Built against pinned Emby 4.10.0.40 references; **82 contract checks passed**, with zero build warnings/errors. Checks cover release-date scope, upcoming dates, positive/empty/error publication decisions, keeping existing pending entries, withholding new unchecked entries, durable daily/minute/rolling limits, concurrent lookup coalescing, expiry and malformed/error responses.
+
+Production Emby 4.10.1.0 loaded the local V0.47.0 build with the optional gate enabled. The exact initial queue was 18 already-premiered recent movies; twelve future-premiere entries were withheld during native refresh without source enumeration. The first standard lookup returned no usable candidates for Heart of the Beast and its pathless Undertow entry was removed. No positive live source result had been observed at the 20:09 CDT checkpoint; the positive publication branch is covered by contracts. Existing untested titles were retained pending evidence.
+
+All 14,421 file-backed native IDs/GUIDs/paths and all 73 user-data rows remained exact, SQLite quick_check passed, and the saved source connection was unchanged. The full saved catalog remained intact. Zero native source opens/probes occurred. Full stack reachability/security and detailed Mycelium health passed at 20:12 CDT. Maintenance rendered the enabled switch, bounded-search explanation, empty result and private blank credential field. Physical clients and sustained playback were not retested. V0.47.0 is a local deployment, not yet a published GitHub release.
+
+At 20:18 CDT, the native interval task had run automatically after restart, preserving its consumed allowance. Two empty results and twelve future premieres accounted for all fourteen removed native entries, with zero removals outside the gate. File-backed identities, user data and source settings still matched. Full stack/security/detailed Mycelium health passed again at 20:18 CDT. The final deployed DLL SHA256 is `d54b2a76dd8722ba5f3a18ad9f3c378cbb97caea21518d7880940c260d135b9a`.
+
+Emby's native interval implementation can delay a task's first automatic run by one hour when no execution history exists; the guide documents the standard manual task start for an immediate first result. Persisted budgets still apply.
+
 ## V0.46.1: whole-title duplicate suppression — October 7, 2026
 
 Built against pinned Emby 4.10.0.40 references; **57 contract checks passed**. Production Emby 4.10.1.0 loaded V0.46.1 with the switch enabled. Its native refresh matched 132 movies and 23 series, omitting each matching series in full (1,948 cached episodes). Episode coverage is deliberately not checked. Native refresh removed 132 movie duplicates, then 2,125 additional series/season/episode records. The complete 837-title catalog snapshot remains retained.

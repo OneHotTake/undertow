@@ -129,7 +129,7 @@ public sealed class ConnectionView : PluginPageView
 public sealed class MaintenanceOptions : EditableOptionsBase
 {
     public override string EditorTitle => "Maintenance";
-    public override string EditorDescription => "Refresh catalogs, check sync status and choose playback preferences. Sync retains catalog metadata. Optional duplicate cleanup removes only Undertow entries matched to local files.";
+    public override string EditorDescription => "Refresh catalogs, check sync status and choose playback preferences. Catalog metadata is retained. Optional duplicate and availability filters control which Undertow titles appear in Emby.";
     public StatusItem State { get; set; } = new("Library status", "Ready", ItemStatus.None);
     public CaptionItem Summary { get; set; } = new("Your catalog");
     public LabelItem Counts { get; set; } = new("");
@@ -150,6 +150,16 @@ public sealed class MaintenanceOptions : EditableOptionsBase
     [DisplayName("Skip titles already in the local library")]
     [Description("Match IMDb, TMDB or TVDB IDs against local movies and series. Save, then refresh. A matching local series skips the entire Undertow series, even if you own only some episodes. Catalog metadata is retained; local files and stream-file libraries are unchanged.")]
     public bool SkipLibraryDuplicates { get; set; }
+    public CaptionItem Availability { get; set; } = new("Recent movie availability");
+    [DisplayName("Check recent movies without a confirmed home release")]
+    [Description("Off by default. Recent movies (under 365 days) without a past digital, physical or TV release need usable source candidates before appearing in Emby. Upcoming movies wait for their premiere. Enable, save, then refresh. This deliberately searches your source's addons/indexers; it never opens or probes video.")]
+    public bool CheckRecentMovieAvailability { get; set; }
+    [DisplayName("TMDB API key or read access token")]
+    [Description("Required for release-date metadata. Stored privately; leave blank to retain it. This is separate from your source login.")]
+    [MediaBrowser.Model.Attributes.IsPassword]
+    public string TmdbCredential { get; set; } = "";
+    public LabelItem AvailabilityHelp { get; set; } = new("The minute task checks at most one movie per minute, once per movie per 24 hours, with a hard ceiling of 48 background source lookups per rolling 24 hours. Normal playback results satisfy the daily check. Empty results hide existing Undertow entries; errors retain the prior decision. Disable, save and refresh to republish retained titles. Versions still resolve through normal Emby playback; availability is not a playback guarantee.");
+    public LabelItem AvailabilityStatus { get; set; } = new("");
     public CaptionItem Actions { get; set; } = new("Refresh your library");
     public LabelItem RefreshHelp { get; set; } = new("Check selected catalogs for additions and update Emby. Catalog metadata is retained; enabled duplicate cleanup removes matched Undertow entries. Files are opened and probed when playback starts.");
     public ButtonItem Refresh { get; set; } = new("Refresh now") { Data1 = "Refresh", Icon = IconNames.refresh };
@@ -158,7 +168,7 @@ public sealed class MaintenanceOptions : EditableOptionsBase
     public LabelItem RebuildHelp { get; set; } = new("Fetch every selected catalog, season and episode again, then update Emby. Use this to recheck cached metadata. Catalog metadata is retained; enabled duplicate cleanup still applies.");
     public ButtonItem Rebuild { get; set; } = new("Rebuild catalog…") { Data1 = "Rebuild", Icon = IconNames.warning, ConfirmationPrompt = "Rebuild the catalog? All selected catalogs, seasons and episodes will be fetched again. Catalog metadata is retained; enabled duplicate cleanup still applies. This can take several minutes." };
     public CaptionItem Unavailable { get; set; } = new("Recent unavailable titles");
-    public LabelItem UnavailableHelp { get; set; } = new("Reasons from recent playback requests. No background searches. The last ten misses are kept until Emby restarts; a successful source lookup clears that title.");
+    public LabelItem UnavailableHelp { get; set; } = new("Reasons from recent source lookups, including the optional recent-movie checks above. This list itself triggers no searches. The last ten misses are kept until Emby restarts; a successful source lookup clears that title.");
     public LabelItem UnavailableTitles { get; set; } = new("");
     public CaptionItem Playback { get; set; } = new("Playback selection");
     [DisplayName("Maximum playback versions")]
@@ -173,14 +183,15 @@ public sealed class MaintenanceView : PluginPageView
     public MaintenanceView(string id) : base(id)
     {
         var c = Plugin.Instance.Configuration;
-        ContentData = new MaintenanceOptions { SkipLibraryDuplicates = c.SkipLibraryDuplicates, Enabled = c.Enabled, RefreshHours = c.RefreshHours, SeriesRefreshHours = c.EffectiveSeriesRefreshHours, MaximumVersions = c.MaximumVersions, Preferred4KSizeGb = c.Preferred4KSizeGb };
+        ContentData = new MaintenanceOptions { CheckRecentMovieAvailability = c.CheckRecentMovieAvailability, SkipLibraryDuplicates = c.SkipLibraryDuplicates, Enabled = c.Enabled, RefreshHours = c.RefreshHours, SeriesRefreshHours = c.EffectiveSeriesRefreshHours, MaximumVersions = c.MaximumVersions, Preferred4KSizeGb = c.Preferred4KSizeGb };
         UpdateStatus();
     }
     private void UpdateStatus()
     {
         var ui = (MaintenanceOptions)ContentData; var s = CatalogSync.Snapshot;
         ui.DuplicateStatus.Text = $"{s.SuppressedMovieIds.Count:N0} movies and {s.SuppressedSeriesIds.Count:N0} series matched; {s.SuppressedEpisodeIds.Count:N0} episodes omitted with their series; {CatalogSync.RemovedDuplicates:N0} Undertow entries removed by the latest refresh in this session. Filter is {(Plugin.Instance.Configuration.SkipLibraryDuplicates ? "enabled" : "disabled")}.";
-        var running = CatalogSync.Phase is "Catalog listing" or "Season and episode metadata" or "Emby import and native metadata";
+        var running = CatalogSync.IsRunning;
+        ui.AvailabilityStatus.Text = MovieAvailability.Status(s);
         ui.State.Status = running ? ItemStatus.InProgress : string.IsNullOrEmpty(CatalogSync.LastError) ? (s.Imported == default ? ItemStatus.None : ItemStatus.Succeeded) : ItemStatus.Failed;
         ui.State.StatusText = running ? CatalogSync.Phase + $" · {CatalogSync.CatalogPages:N0} pages · {CatalogSync.SeriesProcessed:N0} series checked" : string.IsNullOrEmpty(CatalogSync.LastError) ? (s.Imported == default ? "Waiting for first sync" : "Up to date with the last completed sync") : CatalogSync.LastError;
         ui.Refresh.IsEnabled = !running;
@@ -204,11 +215,15 @@ public sealed class MaintenanceView : PluginPageView
         RequireAdmin(); var command = string.IsNullOrEmpty(commandId) ? data.Split(':')[0] : commandId;
         if (command is "Refresh" or "Rebuild")
         {
-            if (CatalogSync.Phase is "Catalog listing" or "Season and episode metadata" or "Emby import and native metadata") throw new InvalidOperationException("A refresh is already running.");
+            if (CatalogSync.IsRunning) throw new InvalidOperationException("A refresh is already running.");
             CatalogRefreshTask.ForceNextRun = true; CatalogRefreshTask.RebuildNextRun = command == "Rebuild";
             Plugin.Instance.Host.Resolve<ITaskManager>().QueueIfNotRunning<CatalogRefreshTask>();
         }
-        else if (command == "Cancel") Plugin.Instance.Host.Resolve<ITaskManager>().CancelIfRunning<CatalogRefreshTask>();
+        else if (command == "Cancel")
+        {
+            Plugin.Instance.Host.Resolve<ITaskManager>().CancelIfRunning<CatalogRefreshTask>();
+            Plugin.Instance.Host.Resolve<ITaskManager>().CancelIfRunning<MovieAvailabilityTask>();
+        }
         UpdateStatus(); return this;
     }
     public override Task<IPluginUIView> OnSaveCommand(string itemId, string commandId, string data)
@@ -218,12 +233,18 @@ public sealed class MaintenanceView : PluginPageView
         var value = values.RootElement;
         ui.Enabled = value.GetProperty(nameof(ui.Enabled)).GetBoolean();
         ui.SkipLibraryDuplicates = value.TryGetProperty(nameof(ui.SkipLibraryDuplicates), out var skip) ? skip.GetBoolean() : Plugin.Instance.Configuration.SkipLibraryDuplicates;
+        ui.CheckRecentMovieAvailability = value.TryGetProperty(nameof(ui.CheckRecentMovieAvailability), out var availability) ? availability.GetBoolean() : Plugin.Instance.Configuration.CheckRecentMovieAvailability;
+        var credential = value.TryGetProperty(nameof(ui.TmdbCredential), out var tmdb) ? tmdb.GetString() ?? "" : "";
         ui.RefreshHours = SettingsValues.Integer(value, nameof(ui.RefreshHours));
         ui.SeriesRefreshHours = SettingsValues.Integer(value, nameof(ui.SeriesRefreshHours));
         ui.MaximumVersions = SettingsValues.Integer(value, nameof(ui.MaximumVersions));
         ui.Preferred4KSizeGb = SettingsValues.Integer(value, nameof(ui.Preferred4KSizeGb));
         if (ui.RefreshHours is < 1 or > 168 || ui.SeriesRefreshHours is < 1 or > 720 || ui.MaximumVersions is < 1 or > 50 || ui.Preferred4KSizeGb is < 1 or > 200) throw new ArgumentException("Setting outside its supported range.");
-        var c = Plugin.Instance.Configuration; c.Enabled = ui.Enabled; c.SkipLibraryDuplicates = ui.SkipLibraryDuplicates; c.RefreshHours = ui.RefreshHours; c.SeriesRefreshHours = ui.SeriesRefreshHours; c.MaximumVersions = ui.MaximumVersions; c.Preferred4KSizeGb = ui.Preferred4KSizeGb;
+        if (CatalogSync.IsRunning) throw new InvalidOperationException("Wait for the current refresh or availability check before changing settings.");
+        if (ui.CheckRecentMovieAvailability && string.IsNullOrWhiteSpace(credential) && AvailabilityCredential.Load() == "") throw new ArgumentException("Enter a TMDB API key or read access token before enabling availability checks.");
+        AvailabilityCredential.Save(credential);
+        ui.TmdbCredential = "";
+        var c = Plugin.Instance.Configuration; c.CheckRecentMovieAvailability = ui.CheckRecentMovieAvailability; c.Enabled = ui.Enabled; c.SkipLibraryDuplicates = ui.SkipLibraryDuplicates; c.RefreshHours = ui.RefreshHours; c.SeriesRefreshHours = ui.SeriesRefreshHours; c.MaximumVersions = ui.MaximumVersions; c.Preferred4KSizeGb = ui.Preferred4KSizeGb;
         Plugin.Instance.SaveConfiguration(); UpdateStatus(); return Task.FromResult<IPluginUIView>(this);
     }
 }

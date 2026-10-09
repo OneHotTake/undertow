@@ -35,13 +35,15 @@ Catalog refresh fetches metadata. It does not resolve streams or write STRM and 
 
 V0.47.0 adds **Maintenance → Check recent movies without a confirmed home release**. It is off by default. Supply a TMDB API key or read access token, enable it, save and refresh. See [Movie availability](docs/movie-availability.md) for the complete rules and limits.
 
+The TMDB credential reads digital, physical and TV release dates so Undertow can limit which recent movies need a source check. TMDB does not supply streams; those still come from your configured source. This credential is required only for this optional feature, not ordinary catalog import or playback.
+
 Movies released within the last 365 days need a usable source result if TMDB has no past digital, physical or TV release. Upcoming movies wait until their premiere date. Older movies, series and locally owned duplicates are outside this background search queue. Missing release metadata is not proof a movie has no streams.
 
 The native task checks at most one movie per minute and once per movie per 24 hours, with a ceiling of 48 background source attempts per rolling 24 hours. It uses the same upstream profile, release filters and source translation as playback. It never opens a video, probes tracks or downloads media. Normal playback lookups satisfy the daily check too.
 
 Any usable candidate makes the movie eligible for Emby's native catalog and version selection. A completed lookup returning none withholds a new movie or removes its existing Undertow entry. Errors and timeouts retain the previous decision. Catalog metadata stays saved so a later positive result can republish the same source identity. Playback still obtains fresh versions on demand; availability evidence is not a saved permanent stream URL or a guarantee of device compatibility.
 
-Disable the switch, save and refresh to restore ordinary additive publication. This feature controls Undertow movies only; it does not delete local media or alter acquisition requests. V0.47.0 source includes the feature; see [verification](docs/verification.md) for deployment and release status.
+Disable the switch, save and refresh to restore ordinary additive publication. This feature controls Undertow movies only; it does not delete local media or alter acquisition requests. V0.47.0 includes the feature; see [verification](docs/verification.md) for dated deployment checks and limitations.
 
 ## Skip titles you already own
 
@@ -68,7 +70,7 @@ See [Setup](docs/setup.md) and [Settings](docs/settings.md) for details.
 
 We tested stock Jellyfin 12.2.0 and other compatible servers. The stock Jellyfin test imported one movie and a series with five seasons and 44 episodes. The movie and pilot played through Emby. V0.42.3 added the authorization header required by that server.
 
-V0.45.7 passed 39 contract checks. Earlier V0.42.5 production checks returned twelve versions for a movie and an episode, selected English audio, and preserved the existing library IDs.
+V0.47.0 passed 82 contract checks and production publication checks for positive, empty and upcoming movies. Earlier V0.42.5 production checks returned twelve versions for a movie and an episode, selected English audio, and preserved the existing library IDs.
 
 Other Jellyfin-compatible servers should work if they implement the [required API](docs/compatibility.md). Test yours. Short decoder checks do not prove a whole film, HDR, subtitles, seeking or every Apple device. See the [verification report](docs/verification.md) for dated results and gaps.
 

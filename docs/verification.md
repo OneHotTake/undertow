@@ -12,6 +12,8 @@ At 20:18 CDT, the native interval task had run automatically after restart, pres
 
 Emby's native interval implementation can delay a task's first automatic run by one hour when no execution history exists; the guide documents the standard manual task start for an immediate first result. Persisted budgets still apply.
 
+The owner-requested production full rebuild completed at 20:23:59 CDT in 19.24 seconds. All 406 series were fetched again through the standard metadata path. The snapshot retained 493 movies, 406 series, 2,242 seasons and 36,885 unique episodes. All 14,421 file-backed identities/paths and 73 user-data rows remained exact; SQLite quick_check passed. Connection/settings and all five previously consumed availability attempts were preserved. No additional source lookup/open/probe occurred during the rebuild. Full stack/security/detailed Mycelium health passed at 20:23:48 CDT. Upstream metadata caches may still apply.
+
 ## V0.46.1: whole-title duplicate suppression — October 7, 2026
 
 Built against pinned Emby 4.10.0.40 references; **57 contract checks passed**. Production Emby 4.10.1.0 loaded V0.46.1 with the switch enabled. Its native refresh matched 132 movies and 23 series, omitting each matching series in full (1,948 cached episodes). Episode coverage is deliberately not checked. Native refresh removed 132 movie duplicates, then 2,125 additional series/season/episode records. The complete 837-title catalog snapshot remains retained.

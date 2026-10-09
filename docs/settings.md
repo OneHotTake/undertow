@@ -26,7 +26,7 @@ Anime-specific IDs take precedence over TMDB/TVDB IDs. A marked anime catalog al
 | Enable scheduled refresh | Controls automatic refresh. Manual refresh remains available when the schedule is off. |
 | Refresh interval | 1–168 hours; default 6. Emby's task checks hourly, then refreshes when due. |
 | Refresh existing seasons and episodes | 1–720 hours; default 6. New series fetch on the next sync. Existing structure uses this cache period. |
-| Recent unavailable titles | The last ten failed source lookups, with safe upstream filter counts where available. Memory only; cleared at restart or when that title returns playable versions. Uses existing playback requests. |
+| Recent unavailable titles | The last ten failed source lookups, with safe upstream filter counts where available. Memory only; cleared at restart or when that title returns playable versions. Uses completed source lookups, including optional recent-movie checks; this list itself triggers no requests. |
 | Refresh status | Reload counts, last successful sync, duration, due time and current stage. Counts describe the saved snapshot, including retained titles. |
 | Refresh now | Fetch selected catalog membership, recheck due series and update Emby. |
 | Cancel current refresh | Request cancellation. A committed snapshot may already exist; native import can finish only partly and needs a retry. |

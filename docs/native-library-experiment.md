@@ -8,6 +8,23 @@ without searching for sources during publication or browsing. Moving those
 records out of a channel does **not**, by itself, make them usable in Infuse.
 The actual macOS client encountered errors before Play or version selection.
 
+## Decision for the next revisit
+
+Set this approach aside as an Infuse fix. Do not repeat the library-only
+experiment merely because ordinary libraries look more compatible than channels.
+The blocking evidence is the static item-detail source boundary, not catalog
+publication, provider latency or failed HTTP requests.
+
+Revisit if Emby or Infuse changes that boundary, or if there is a concrete way
+to supply a usable source on demand for the selected title without resolving
+every listed movie/episode. AIOStreams should continue proxying playback; this
+test gives no reason to add a separate file player. Any future source-descriptor
+solution still needs actual Infuse movie/episode and version-selection tests.
+
+The tested implementation is commit `9703eed`; this report and the redacted
+API trace are retained on the
+[experimental GitHub branch](https://github.com/OneHotTake/undertow/tree/experiment/native-library-infuse).
+
 ## What changed
 
 `NativeLibraryLab` creates standard Movie, Series, Season and Episode records
@@ -134,7 +151,7 @@ catalog-wide resolution would reintroduce the original InfiniteDrive problem.
 
 The lab container is **stopped**, restart policy `no`, and its private config,
 build artifacts and redacted receipts are preserved. No production rollout,
-release, public branch push or migration occurred. To repeat, start only this
+release or migration occurred. To repeat, start only this
 named disposable container and reconnect a lab account. To abandon, leave it
 stopped and discard the experimental branch; no production rollback is needed.
 

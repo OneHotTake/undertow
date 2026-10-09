@@ -24,6 +24,19 @@ public sealed class SelectedSourceProvider(IApplicationHost host) : IMediaSource
     public async Task<List<MediaSourceInfo>> GetMediaSources(BaseItem item, CancellationToken ct)
     {
         if (item is not Video) return new();
+        if (NativeLibraryLab.Owns(item))
+        {
+            Interlocked.Increment(ref NativeLibraryLab.ProviderCalls);
+            Interlocked.Increment(ref NativeLibraryLab.SourceLookups);
+            var nativeSources = await JellyfinClient.Instance.Resolve(NativeLibraryLab.RemoteId(item)!, ct);
+            foreach (var source in nativeSources)
+            {
+                PrepareUnopenedSource(source);
+                source.RequiresOpening = true;
+                source.OpenToken = MakeToken(item.ExternalId, source.Id);
+            }
+            return nativeSources;
+        }
         var channel = host.Resolve<IChannelManager>().GetChannel<JellyfinChannel>();
         if (channel == null || item.FindParent<Channel>()?.Id !=
             host.Resolve<ILibraryManager>().GetNewItemId("Channel " + channel.Name, typeof(Channel))) return new();

@@ -1,0 +1,153 @@
+[
+  {
+    "UTC": "2026-10-09 12:32:22.523",
+    "Method": "POST",
+    "Path": "/Users/AuthenticateByName",
+    "Parameters": {},
+    "Status": "200",
+    "Milliseconds": "29"
+  },
+  {
+    "UTC": "2026-10-09 12:32:40.309",
+    "Method": "POST",
+    "Path": "/Users/AuthenticateByName",
+    "Parameters": {},
+    "Status": "200",
+    "Milliseconds": "2"
+  },
+  {
+    "UTC": "2026-10-09 12:36:26.005",
+    "Method": "POST",
+    "Path": "/Users/AuthenticateByName",
+    "Parameters": {},
+    "Status": "200",
+    "Milliseconds": "11"
+  },
+  {
+    "UTC": "2026-10-09 12:36:33.725",
+    "Method": "POST",
+    "Path": "/Users/AuthenticateByName",
+    "Parameters": {},
+    "Status": "200",
+    "Milliseconds": "6"
+  },
+  {
+    "UTC": "2026-10-09 12:50:54.066",
+    "Method": "GET",
+    "Path": "/Users/{user}/Items/643",
+    "Parameters": {
+      "Fields": [
+        "DateCreated,Etag,Genres,MediaSources,AlternateMediaSources,Overview,ParentId,Path,ProviderIds,SortName,RecursiveItemCount,ChildCount,CommunityRating,OfficialRating,PremiereDate"
+      ]
+    },
+    "Status": "200",
+    "Milliseconds": "6"
+  },
+  {
+    "UTC": "2026-10-09 12:50:54.134",
+    "Method": "GET",
+    "Path": "/Shows/643/Seasons",
+    "Parameters": {
+      "UserId": [
+        "{user}"
+      ],
+      "Fields": [
+        "Genres,ParentId"
+      ]
+    },
+    "Status": "200",
+    "Milliseconds": "3"
+  },
+  {
+    "UTC": "2026-10-09 12:50:54.151",
+    "Method": "GET",
+    "Path": "/Shows/643/Episodes",
+    "Parameters": {
+      "UserId": [
+        "{user}"
+      ],
+      "Fields": [
+        "Etag,MediaSources,AlternateMediaSources,Genres,Overview,ParentId,ProviderIds"
+      ]
+    },
+    "Status": "200",
+    "Milliseconds": "7"
+  },
+  {
+    "UTC": "2026-10-09 12:53:54.933",
+    "Method": "GET",
+    "Path": "/Users/{user}/Views",
+    "Parameters": {},
+    "Status": "200",
+    "Milliseconds": "1"
+  },
+  {
+    "UTC": "2026-10-09 12:54:00.097",
+    "Method": "GET",
+    "Path": "/Users/{user}/Items/637",
+    "Parameters": {
+      "Fields": [
+        "DateCreated,Etag,Genres,MediaSources,AlternateMediaSources,Overview,ParentId,Path,ProviderIds,SortName,RecursiveItemCount,ChildCount,CommunityRating,OfficialRating,PremiereDate"
+      ]
+    },
+    "Status": "200",
+    "Milliseconds": "2"
+  },
+  {
+    "UTC": "2026-10-09 12:54:00.172",
+    "Method": "GET",
+    "Path": "/DisplayPreferences/usersettings",
+    "Parameters": {
+      "userId": [
+        "{user}"
+      ]
+    },
+    "Status": "200",
+    "Milliseconds": "0"
+  },
+  {
+    "UTC": "2026-10-09 12:54:00.204",
+    "Method": "GET",
+    "Path": "/Users/{user}/Items",
+    "Parameters": {
+      "ParentId": [
+        "637"
+      ],
+      "SortBy": [
+        "SortName"
+      ],
+      "SortOrder": [
+        "Ascending"
+      ],
+      "IncludeItemTypes": [
+        "Movie"
+      ],
+      "Recursive": [
+        "true"
+      ],
+      "StartIndex": [
+        "0"
+      ],
+      "Limit": [
+        "50"
+      ],
+      "Fields": [
+        "DateCreated,Etag,Genres,MediaSources,AlternateMediaSources,Overview,ParentId,Path,ProviderIds,SortName,RecursiveItemCount,ChildCount,CommunityRating,OfficialRating,PremiereDate"
+      ]
+    },
+    "Status": "200",
+    "Milliseconds": "2"
+  },
+  {
+    "UTC": "2026-10-09 13:05:25.989",
+    "Method": "GET",
+    "Path": "/Users/{user}/Items//",
+    "Parameters": {
+      "Fields": [
+        "DateCreated,Etag,Genres,MediaSources,AlternateMediaSources,Overview,ParentId,Path,ProviderIds,SortName,RecursiveItemCount,ChildCount,CommunityRating,OfficialRating,PremiereDate"
+      ]
+    },
+    "Status": "200",
+    "Milliseconds": "6"
+  }
+]

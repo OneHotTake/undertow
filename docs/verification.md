@@ -1,5 +1,16 @@
 # Verification
 
+## Experimental native libraries — October 9, 2026
+
+The local `experiment/native-library-infuse` branch passed 86 contract checks.
+An isolated Emby 4.10.0.40 lab published six standard, fileless library records,
+preserved their IDs and progress across validation scans/restart, and resolved
+and opened one selected source through the existing upstream path. Publication
+and Infuse browsing made zero source requests. Actual macOS Infuse could see
+the libraries but failed before Play; its item-detail reads still received
+pathless placeholders rather than dynamic candidates. This is a failed Infuse
+acceptance gate, not released support. See the [experiment and API trace](native-library-experiment.md).
+
 ## V0.47.0: recent-movie availability — October 8, 2026
 
 Built against pinned Emby 4.10.0.40 references; **82 contract checks passed**, with zero build warnings/errors. Checks cover release-date scope, upcoming dates, positive/empty/error publication decisions, keeping existing pending entries, withholding new unchecked entries, durable daily/minute/rolling limits, concurrent lookup coalescing, expiry and malformed/error responses.

@@ -5,6 +5,12 @@ using MediaBrowser.Model.Channels;
 
 var checks = 0;
 void Check(bool value, string name) { if (!value) throw new Exception(name); checks++; Console.WriteLine("PASS " + name); }
+var nativeMovie = NativeLibraryLab.Create(new() { Id = "native-movie", Type = "Movie", Name = "Native movie", ProviderIds = new() { ["Imdb"] = "tt123" } });
+Check(nativeMovie is MediaBrowser.Controller.Entities.Movies.Movie && nativeMovie.Path == null && !nativeMovie.IsVirtualItem && nativeMovie.ExternalId == "jf:native-movie", "ordinary native movie is fileless with stable upstream identity");
+Check(NativeLibraryLab.RemoteId(nativeMovie) == "native-movie" && nativeMovie.ProviderIds["Imdb"] == "tt123", "native fixture ownership is separately marked without losing metadata IDs");
+Check(NativeLibraryLab.Create(new() { Id = "native-episode", Type = "Episode", Name = "Episode", IndexNumber = 2, ParentIndexNumber = 1 }) is MediaBrowser.Controller.Entities.TV.Episode { IndexNumber: 2, ParentIndexNumber: 1, Path: null }, "native episode retains numbering without a file path");
+var nativeOptions = NativeLibraryLab.Options("/fixture", "tvshows");
+Check(!nativeOptions.EnableRealtimeMonitor && !nativeOptions.EnableMarkerDetection && !nativeOptions.EnableChapterImageExtraction && nativeOptions.TypeOptions.All(t => t.ImageFetchers.Length == 0 && t.MetadataFetchers.Length == 0), "native experiment disables scan-time media extraction and metadata fetches");
 var movie = JellyfinChannel.Map(new() { Id = "movie", Type = "Movie", Name = "Movie", RunTimeTicks = 123, ProviderIds = new() { ["Imdb"] = "tt123" } });
 Check(movie.Type == ChannelItemType.Media && movie.ContentType == ChannelMediaContentType.Movie && movie.RunTimeTicks == 123, "movie type and runtime");
 Check(movie.MediaSources.Count == 0, "metadata mapping never supplies a resolved stream");

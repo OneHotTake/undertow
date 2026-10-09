@@ -1,5 +1,11 @@
 # Infuse
 
+An October 9 [native-library experiment](native-library-experiment.md) repeated
+the test using ordinary Movie/TV libraries instead of channel parents. Infuse
+still received pathless placeholders in item details and errored before Play.
+The captured requests returned HTTP 200 and triggered no dynamic-source lookup.
+Native library publication alone does not remove the source-descriptor gap.
+
 Connect Infuse directly to the Jellyfin source. Undertow remains an Emby plugin for Emby's native clients; its Infuse adapter is retired.
 
 ## Direct connection

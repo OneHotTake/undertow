@@ -76,6 +76,11 @@ Other Jellyfin-compatible servers should work if they implement the [required AP
 
 ## Infuse
 
+The local October 9 [native-library experiment](docs/native-library-experiment.md)
+also tested ordinary fileless Movie/TV libraries. Their IDs and progress survived
+scans/restart without source searches, but Infuse still failed on placeholder
+item-detail sources. This branch is a lab prototype, not a released feature.
+
 Connect Infuse directly to the Jellyfin source. Keep its Emby connection for owned media.
 
 Infuse reads versions from item details. Emby returns stored sources there; Undertow discovers versions through Emby's playback callbacks. We tested workarounds and retired them. Preparing versions for the entire catalog would defeat lightweight sync.

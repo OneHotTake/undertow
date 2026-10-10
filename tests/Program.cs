@@ -29,6 +29,28 @@ using var empty = JsonDocument.Parse("{\"MediaSources\":[]}");
 try { JellyfinClient.TranslateSources(empty.RootElement); throw new Exception("Accepted no source"); } catch (InvalidOperationException) { checks++; Console.WriteLine("PASS fail closed without playable sources"); }
 var token = SelectedSourceProvider.MakeToken("jf:movie", "source");
 Check(SelectedSourceProvider.ReadToken(token) == ("jf:movie", "source"), "selected source token binds exact item and version without a media URL");
+var realChoices = new List<MediaBrowser.Model.Dto.MediaSourceInfo> {
+    new() { Id = "first-real", Name = "First", Path = "https://example.invalid/first.mkv", RequiresOpening = true, OpenToken = SelectedSourceProvider.MakeToken("jf:movie", "first-real") },
+    new() { Id = "second-real", Name = "Second", RequiresOpening = true, OpenToken = SelectedSourceProvider.MakeToken("jf:movie", "second-real") }
+};
+SelectedSourceProvider.AddAutomaticSourceAlias(realChoices, "mediasource_123");
+Check(realChoices.Select(x => x.Id).SequenceEqual(new[] { "first-real", "second-real", "mediasource_123" }), "automatic alias retains all real version IDs and original ordering");
+Check(realChoices[2].Name == "Automatic — First" && realChoices[0].Name == "First" && realChoices[2].Path == realChoices[0].Path && !realChoices[2].RequiresOpening && !realChoices[2].RequiresClosing && realChoices[2].LiveStreamId == null, "automatic descriptor is a separate finite file without a live-session identity");
+Check(realChoices[2].OpenToken == null && SelectedSourceProvider.ReadToken(realChoices[0].OpenToken) == ("jf:movie", "first-real"), "automatic file preserves the offered URL while real versions retain exact opening tokens");
+SelectedSourceProvider.AddAutomaticSourceAlias(realChoices, "mediasource_123");
+Check(realChoices.Count == 3, "automatic alias cannot duplicate a source ID");
+var absentChoices = new List<MediaBrowser.Model.Dto.MediaSourceInfo>();
+SelectedSourceProvider.AddAutomaticSourceAlias(absentChoices, "mediasource_123");
+Check(absentChoices.Count == 0, "no automatic choice when no real sources are offered");
+var unopenedChoices = new List<MediaBrowser.Model.Dto.MediaSourceInfo> { new() { Id = "unmanaged" } };
+SelectedSourceProvider.AddAutomaticSourceAlias(unopenedChoices, "mediasource_123");
+Check(unopenedChoices.Count == 1, "automatic alias accepts only an already prepared real source");
+var protectedChoices = new List<MediaBrowser.Model.Dto.MediaSourceInfo> { new(realChoices[0]) { RequiredHttpHeaders = new() { ["Authorization"] = "fixture" } } };
+SelectedSourceProvider.AddAutomaticSourceAlias(protectedChoices, "mediasource_123");
+Check(protectedChoices.Count == 1, "automatic direct file fails closed when HTTP headers are required");
+var invalidChoices = new List<MediaBrowser.Model.Dto.MediaSourceInfo> { new(realChoices[0]) { Path = "/local/fixture.mkv" } };
+SelectedSourceProvider.AddAutomaticSourceAlias(invalidChoices, "mediasource_123");
+Check(invalidChoices.Count == 1, "automatic direct file cannot expose a non-HTTP path");
 try { SelectedSourceProvider.ReadToken(SelectedSourceProvider.MakeToken("foreign", "source")); throw new Exception("Accepted foreign source token"); }
 catch (ArgumentException) { checks++; Console.WriteLine("PASS selected-source token rejects foreign item"); }
 using var twelve = JsonDocument.Parse(JsonSerializer.Serialize(new { MediaSources = Enumerable.Range(1, 15).Select(i => new { Id = i.ToString(), Path = "https://invalid.example/movie.mkv", Size = (long)i * 1_000_000_000, MediaStreams = new[] { new { Type = "Video", Index = 0, Width = 3840 } } }) }));

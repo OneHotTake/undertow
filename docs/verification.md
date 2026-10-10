@@ -1,5 +1,51 @@
 # Verification
 
+## V0.47.1 test release: Moonfin default playback — October 10, 2026
+
+Built against pinned Emby 4.10.0.40 references: **90 contract checks passed**, zero
+warnings/errors. Production Emby 4.10.1.0 loaded the exact final DLL, SHA256
+`9842679ba7de0a4f63f5c046420a5242e43b24f6bb01db2d476ff523da040136`.
+
+In an isolated same-version lab and production, 12 Angry Men and the Friends
+pilot offered seven/four real candidates plus one finite automatic choice.
+The formerly failing static source ID now returns that automatic file without
+opening/probing a managed stream or advertising LiveStreamId. Missing explicit
+IDs fail closed. Direct HTTP decoded two seconds and sought 30 seconds for each.
+An explicit non-default real version preserved its ID, probed exactly one file,
+returned English audio (indices 1/2 respectively), decoded through native Emby
+remux and closed. No probe failure occurred. Metadata mapping still provides
+no resolved streams; no catalog rebuild or saved stream URL was introduced.
+
+Installed macOS Moonfin 2.6.0/build 30000153 actually played the Undertow movie
+through the existing Emby Vault connection at approximately 10:34–10:37 CDT.
+Changing frames, forward seek, runtime 1:36:24 and continued progress to 3:06
+were observed; the test stopped. The automatic file caused no additional plugin
+open/probe. **The Audio Track dialog was empty, and the Undertow version menu
+remains unrepaired.** This is a default-Play fix, not full Moonfin compatibility.
+Audio listening, manual track/subtitle selection, whole-film, Moonfin episode,
+remote-network, iOS/tvOS, expiry and restart-resume acceptance remain pending.
+
+An initial managed alias passed API decoding but stalled actual Moonfin because
+its player treated the live-stream session ID as live TV, then repeatedly
+retried past file EOF. That candidate was replaced; it is not the release DLL.
+The final automatic file excludes candidates requiring HTTP headers; explicit
+native sources preserve those headers and selected-source opening.
+
+Immediately after final DLL restart, all 222,617 library IDs, 14,416 file-backed
+identities/paths and 74 user-data rows matched the fresh consistent checkpoint;
+connection/plugin settings matched and SQLite integrity passed. The later client
+test deliberately updated only normal admin playback state. Owned grouped
+Emby movie details still returned both normal sources. Only Emby restarted;
+production media/recorders/source filters and saved client connections remained.
+Undertow is visible again in admin navigation for owner testing; its recent-row
+exclusion remains enabled. Full stack health/security checks are recorded in the
+workspace handoff. Preserve both private checkpoints and the stopped lab.
+
+Rollback the binary to V0.47.0 using the original consistent checkpoint; retain
+newer databases, preferences and watch history. No schema migration is needed.
+Restore the admin navigation exclusion independently if desired. This candidate
+is published as a prerelease pending the owner's device tests. See [Moonfin](moonfin.md).
+
 ## V0.47.0: recent-movie availability — October 8, 2026
 
 Built against pinned Emby 4.10.0.40 references; **82 contract checks passed**, with zero build warnings/errors. Checks cover release-date scope, upcoming dates, positive/empty/error publication decisions, keeping existing pending entries, withholding new unchecked entries, durable daily/minute/rolling limits, concurrent lookup coalescing, expiry and malformed/error responses.

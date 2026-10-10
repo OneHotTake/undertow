@@ -31,6 +31,16 @@ InfiniteDrive's code stays available. Undertow does not migrate its database, li
 
 Catalog refresh fetches metadata. It does not resolve streams or write STRM and NFO files. The optional recent-movie task deliberately performs a small, paced set of candidate searches, which can query upstream addons and indexers. The selected file's probe may resolve its final URL before playback.
 
+## Moonfin default playback
+
+[V0.47.1 test release](https://github.com/OneHotTake/undertow/releases/tag/V0.47.1) adds an automatic dynamic choice for clients that send Emby’s static
+Placeholder ID when pressing Play. Native Emby clients keep all real version
+choices. It does not populate Moonfin’s Undertow version menu; connect Moonfin
+directly to the upstream Jellyfin interface for that menu. See [Moonfin](docs/moonfin.md)
+for the code-path explanation, tests and remaining limits. Default Play and a
+short seek worked on Mac Moonfin 2.6.0; its Audio Track dialog was empty. This
+is a prerelease pending further device acceptance.
+
 ## Publish recent movies when streams appear
 
 V0.47.0 adds **Maintenance → Check recent movies without a confirmed home release**. It is off by default. Supply a TMDB API key or read access token, enable it, save and refresh. See [Movie availability](docs/movie-availability.md) for the complete rules and limits.

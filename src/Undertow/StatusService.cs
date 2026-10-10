@@ -16,6 +16,7 @@ public sealed class StatusService : IService
         Version = typeof(Plugin).Assembly.GetName().Version!.ToString(3),
         RecentMovieAvailability = MovieAvailability.Status(CatalogSync.Snapshot),
         SourceOpenCalls = SelectedSourceProvider.OpenCalls,
+        SourceCloseCalls = SelectedSourceProvider.CloseCalls,
         NativeProbeCalls = SelectedSourceProvider.ProbeCalls,
         NativeProbeFailures = SelectedSourceProvider.ProbeFailures
     };

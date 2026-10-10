@@ -34,7 +34,31 @@ public sealed class SelectedSourceProvider(IApplicationHost host) : IMediaSource
             source.RequiresOpening = true;
             source.OpenToken = MakeToken(item.ExternalId, source.Id);
         }
+        // Some clients pin the pathless static descriptor from item details.
+        // Offer that ID as an automatic finite HTTP file. Moonfin treats any
+        // LiveStreamId as live TV, so this choice must not open a managed session.
+        // Keep every real ID and selected-source opening for native clients.
+        if (string.IsNullOrEmpty(item.Path))
+            AddAutomaticSourceAlias(sources, item.GetDefaultMediaSourceId());
         return sources;
+    }
+
+    public static void AddAutomaticSourceAlias(List<MediaSourceInfo> sources, string staticId)
+    {
+        if (sources.Count == 0 || string.IsNullOrEmpty(staticId) || sources.Any(x => x.Id == staticId)) return;
+        var selected = sources[0];
+        if (!selected.RequiresOpening || string.IsNullOrEmpty(selected.OpenToken) ||
+            selected.RequiredHttpHeaders.Count > 0 ||
+            !Uri.TryCreate(selected.Path, UriKind.Absolute, out var path) || path.Scheme is not ("http" or "https")) return;
+        sources.Add(new MediaSourceInfo(selected)
+        {
+            Id = staticId,
+            Name = "Automatic — " + selected.Name,
+            RequiresOpening = false,
+            RequiresClosing = false,
+            LiveStreamId = null,
+            OpenToken = null
+        });
     }
 
     public static void PrepareUnopenedSource(MediaSourceInfo source)
